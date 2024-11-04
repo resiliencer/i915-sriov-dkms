@@ -5,7 +5,14 @@
 #### Notice: this package is **highly experimental**, you should only use it when you know what you are doing.
 
 
-### 1. Linux host setup
+## 1. Linux host setup
+
+Tested Linux Kernel versions: 
+- 6.1.60-lts - works perfectly. Used this branch for almost the entire 2024, for a responsive fast desktop on virtual machines without any lags.
+- <s>6.5.7-zen</s> - works, but a memory leak occurs(the memory will run out in an hour or two), error: `dmesg [drm] *ERROR* tlb invalidation response timed out for seqno 23`
+- <s>6.5.9-zen</s> - same memory leak
+- <b>6.11.2-zen</b> - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa Pull Request #207 and it solved the issue and now everything works without errors.
+
 1) UEFI BIOS settings. I think the only settings that matter are:
 ```
 VT-D = Enabled
@@ -25,42 +32,60 @@ PCIe ASPM = Enabled
 PCH/DMI ASPM = Enabled
 ```
 
-2) Tested Linux Kernel versions: 
-- 6.1.60-lts - works perfectly
-- <s>6.5.7-zen</s> - works, but a memory leak occurs(the memory will run out in an hour or two), error: `dmesg [drm] *ERROR* tlb invalidation response timed out for seqno 23`
-- <s>6.5.9-zen</s> - same memory leak
-
-	Take the first one and sleep well.^^)
-
-3) Ensure the following kernel parameters are set:
+2) Ensure the following kernel config parameters are set:
 ```
 CONFIG_INTEL_MEI_PXP=m
 CONFIG_DRM_I915_PXP=y
 CONFIG_SYSFS=y
 ```
 
-4) Build and install the following dkms modules for your kernel:
-	* **i915.ko** (this or strongtz repo)
-	* **kvmfr.ko** (looking glass, version B6) [AUR](https://aur.archlinux.org/looking-glass.git)
+3) Ensure that `linux-firmware` package installed.
 
-5) Kernel cmdline += ` clocksource=tsc nohpet intel_iommu=on iommu=pt kvm.ignore_msrs=1 kvm.report_ignored_msrs=0 split_lock_detect=off initcall_blacklist=sysfb_init vfio-pci.enable_sriov=1 i915.modeset=1 i915.enable_guc=3 i915.max_vfs=7 i915.reset=1 transparent_hugepage=never `
-Maybe not all parameters are necessary.
+4) Build and install the following dkms module for your kernel:
+	* **i915.ko** (this repository):
+		```
+		cd /usr/src
+		git clone https://github.com/resiliencer/i915-sriov-dkms
+		cd i915-sriov-dkms
+		dkms add .
+		dkms autoinstall
+		```		
+5) And one more dkms module, from Looking Glass solution: 
+	* **kvmfr.ko** (looking glass, version B6 or mb later)
+	The build process is similar. Look at: [AUR](https://aur.archlinux.org/looking-glass.git) or use official build manual.
 
-6) Make new initramfs image (`mkinitfs` or `update-initramfs`) and run `grub-update`.
+6) Kernel cmdline += ` clocksource=tsc nohpet intel_iommu=on iommu=pt kvm.ignore_msrs=1 kvm.report_ignored_msrs=0 split_lock_detect=off initcall_blacklist=sysfb_init vfio-pci.enable_sriov=1 i915.modeset=1 i915.enable_guc=3 i915.max_vfs=7 i915.reset=1 transparent_hugepage=never `
+Not all parameters may be necessary.
+`nano /etc/default/grub && grub-update` 
 
-7) Boot. Check that it works (you can see also the firmware versions used). And turn on SR-IOV.
+7) Reboot.
+
+Check that everything works:
 ```
 # dmesg | grep i915
 ...
 [...] i915: loading out-of-tree module taints kernel.
+[...] i915: module verification failed: signature and/or required key missing - tainting kernel
 [...] i915 0000:00:02.0: Running in SR-IOV PF mode
 [...] i915 0000:00:02.0: [drm] VT-d active for gfx access
+[...] i915 0000:00:02.0: vgaarb: deactivate vga console
+[...] i915 0000:00:02.0: [drm] Using Transparent Hugepages
+[...] i915 0000:00:02.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=io+mem:owns=io+mem
 [...] i915 0000:00:02.0: [drm] Finished loading DMC firmware i915/adls_dmc_ver2_01.bin (v2.1)
-[...] i915 0000:00:02.0: [drm] GT0: GuC firmware i915/tgl_guc_70.bin version 70.5.1
+[...] i915 0000:00:02.0: [drm] GT0: GuC firmware i915/tgl_guc_70.bin version 70.29.2
 [...] i915 0000:00:02.0: [drm] GT0: HuC firmware i915/tgl_huc.bin version 7.9.3
-[...] [drm] Initialized i915 1.6.0 20201103 for 0000:00:02.0 on minor 0
+[...] i915 0000:00:02.0: [drm] GT0: HuC: authenticated for all workloads
+[...] i915 0000:00:02.0: [drm] GT0: GUC: submission enabled
+[...] i915 0000:00:02.0: [drm] GT0: GUC: SLPC enabled
+[...] i915 0000:00:02.0: [drm] GT0: GUC: RC enabled
+[...] i915 0000:00:02.0: [drm] Protected Xe Path (PXP) protected content support initialized
+[...] [drm] Initialized i915 1.6.0 for 0000:00:02.0 on minor 0
 [...] i915 0000:00:02.0: 7 VFs could be associated with this PF
 ...
+```
+You can also see the firmware versions.
+And turn on SR-IOV:
+```
 # echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs
 # lspci -s 02
 00:02.0 VGA compatible controller: Intel Corporation Raptor Lake-S GT1 [UHD Graphics 770] (rev 04)
@@ -71,7 +96,7 @@ Maybe not all parameters are necessary.
 Or use **sysfsutils** and add `devices/pci0000:00/0000:00:02.0/sriov_numvfs = 2` into your `/etc/sysfs.conf`.
 
 ---
-### 2. libvirt/qemu config for VM (win10/win11)
+## 2. libvirt/qemu config for VM (win10/win11)
     
 #### First of all, you need to [extract](https://github.com/Kethen/edk2-build-intel-gop#extracting-intelgopdriverefi-and-vbtbin-from-your-bios) `IntelGopDriver.efi` from your BIOS.
 
@@ -83,7 +108,7 @@ virsh nodedev-detach pci_0000_00_02_1
 virsh nodedev-detach pci_0000_00_02_2
 ```
 
-Activating a kernel module for low latency shared memory access (DMA):
+Activating a kernel module (kvmfr) for low latency shared memory access (DMA):
 ```
 modprobe -v kvmfr static_size_mb=128
 chmod 0660 /dev/kvmfr0
@@ -93,7 +118,7 @@ chown $(whoami):libvirt-qemu /dev/kvmfr0
 All configuration files you can find in this repo, so the rest is straightforward.
 
 
-### 3. Windows client setup
+## 3. Windows client setup
 
 Briefly internal preparation of the VM is consists of three parts:
 * **iddSampleDriver** (virtual monitor) Look at [here](https://github.com/ge9/IddSampleDriver) and [here](https://github.com/roshkins/IddSampleDriver)
@@ -109,9 +134,13 @@ Briefly internal preparation of the VM is consists of three parts:
 6. If everything is ok remove QXL video adapter from your VM. 
 7. Finally migrate from remote desktop client to looking glass client (which you must build from source and run on your Linux Host).
 
-Also have a look at the configuration files in this repository. I hope this helps.
+Also have a look at the configuration files in the repository. I hope this helps.
 
 
+### Donuts / coffee:
+
+XMR: `88LBEBEKbLqQ3GDBHsqLgidbYCLH6uFZZ4BsZr42URJgaJs5SozsejEYc2YRmvbGHC5FbkzcucTsNB4nAtyQVXbGSxzat5e`
+BTC: `bc1qqw2detp3rxxs5aqz66uxctzlf9ad5ge25jcfa5` or `1JySHpr7AVvQWrCjE1qADA8HGa1RbSCLmc` 
 
 
 
