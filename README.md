@@ -8,10 +8,8 @@
 ## 1. Linux host setup
 
 Tested Linux Kernel versions: 
-- 6.1.60-lts - works perfectly. Used this branch for almost the entire 2024, for a responsive fast desktop on virtual machines without any lags.
-- <s>6.5.7-zen</s> - works, but a memory leak occurs(the memory will run out in an hour or two), error: `dmesg [drm] *ERROR* tlb invalidation response timed out for seqno 23`
-- <s>6.5.9-zen</s> - same memory leak
-- <b>6.11.2-zen</b> - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa Pull Request #207 and it solved the issue and now everything works without errors.
+- 6.1.60-lts - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
+- <b>6.11.2-zen</b> - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa-bbaa Pull Request #207 and it solved the issue and now everything works without errors.
 
 1) UEFI BIOS settings. I think the only settings that matter are:
 ```
@@ -50,15 +48,16 @@ CONFIG_SYSFS=y
 		dkms add .
 		dkms autoinstall
 		```		
+		
 5) And one more dkms module, from Looking Glass solution: 
 	* **kvmfr.ko** (looking glass, version B6 or mb later)
 	The build process is similar. Look at: [AUR](https://aur.archlinux.org/looking-glass.git) or use official build manual.
 
 6) Kernel cmdline += ` clocksource=tsc nohpet intel_iommu=on iommu=pt kvm.ignore_msrs=1 kvm.report_ignored_msrs=0 split_lock_detect=off initcall_blacklist=sysfb_init vfio-pci.enable_sriov=1 i915.modeset=1 i915.enable_guc=3 i915.max_vfs=7 i915.reset=1 transparent_hugepage=never `
-Not all parameters may be necessary.
+Not all parameters may be necessary.  
 `nano /etc/default/grub && grub-update` 
 
-7) Reboot.
+7) Reboot.  
 
 Check that everything works:
 ```
@@ -83,7 +82,7 @@ Check that everything works:
 [...] i915 0000:00:02.0: 7 VFs could be associated with this PF
 ...
 ```
-You can also see the firmware versions.
+You can also see the firmware versions.  
 And turn on SR-IOV:
 ```
 # echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs
@@ -100,7 +99,7 @@ Or use **sysfsutils** and add `devices/pci0000:00/0000:00:02.0/sriov_numvfs = 2`
     
 #### First of all, you need to [extract](https://github.com/Kethen/edk2-build-intel-gop#extracting-intelgopdriverefi-and-vbtbin-from-your-bios) `IntelGopDriver.efi` from your BIOS.
 
-Pass this file to the `romfile` parameter of your VM config, otherwise iGPU will not be able to initialize properly and you will get error n.43.
+Pass this file to the `romfile` parameter of your VM config(for qemu command-line `-device vfio-pci,host=0000:00:02.1,romfile=/whereveris/yours/IntelGopDriver.efi`, for libvirt `<rom file='/whereveris/yours/IntelGopDriver.efi'/>`), otherwise iGPU will not be able to initialize properly and you will get error n.43.  
 
 Detaching VFs from host to make them usable for VMs:
 ```
@@ -108,15 +107,14 @@ virsh nodedev-detach pci_0000_00_02_1
 virsh nodedev-detach pci_0000_00_02_2
 ```
 
-Activating a kernel module (kvmfr) for low latency shared memory access (DMA):
+Activating the kernel module (kvmfr) to be able to use low latency shared memory access (DMA):
 ```
 modprobe -v kvmfr static_size_mb=128
 chmod 0660 /dev/kvmfr0
 chown $(whoami):libvirt-qemu /dev/kvmfr0
 ```
-
-All configuration files you can find in this repo, so the rest is straightforward.
-
+  
+Configuration files for libvirt or qemu you can find [here](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/02-libvirt-qemu), so the rest is straightforward.
 
 ## 3. Windows client setup
 
@@ -134,12 +132,13 @@ Briefly internal preparation of the VM is consists of three parts:
 6. If everything is ok remove QXL video adapter from your VM. 
 7. Finally migrate from remote desktop client to looking glass client (which you must build from source and run on your Linux Host).
 
-Also have a look at the configuration files in the repository. I hope this helps.
+
+All configuration files you can find in [configs](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/) , I hope this helps.
 
 
 ### Donuts / coffee:
 
-XMR: `88LBEBEKbLqQ3GDBHsqLgidbYCLH6uFZZ4BsZr42URJgaJs5SozsejEYc2YRmvbGHC5FbkzcucTsNB4nAtyQVXbGSxzat5e`
+XMR: `88LBEBEKbLqQ3GDBHsqLgidbYCLH6uFZZ4BsZr42URJgaJs5SozsejEYc2YRmvbGHC5FbkzcucTsNB4nAtyQVXbGSxzat5e`  
 BTC: `bc1qqw2detp3rxxs5aqz66uxctzlf9ad5ge25jcfa5` or `1JySHpr7AVvQWrCjE1qADA8HGa1RbSCLmc` 
 
 
