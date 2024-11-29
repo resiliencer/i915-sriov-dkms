@@ -1,15 +1,16 @@
 # iGPU passthrough via SR-IOV on Raptor Lake i5-13600K to Win10/11 VMs with Looking Glass
 
+![Global scheme](configs/images/scheme.webp)
+
 ## What do you need to get it work
 
-#### Notice: this package is **highly experimental**, you should only use it when you know what you are doing.
+==**Notice: this package is **highly experimental**, you should only use it when you know what you are doing.**==
 
+Tested Linux Kernel versions:
+- **6.1.60-lts** - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
+- **6.11.2-zen** - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa-bbaa Pull Request #207 and it solved the issue and now everything works without errors.
 
 ## 1. Linux host setup
-
-Tested Linux Kernel versions: 
-- 6.1.60-lts - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
-- <b>6.11.2-zen</b> - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa-bbaa Pull Request #207 and it solved the issue and now everything works without errors.
 
 1) UEFI BIOS settings. I think the only settings that matter are:
 ```
@@ -49,12 +50,14 @@ CONFIG_SYSFS=y
 		dkms autoinstall
 		```		
 		
-5) And one more dkms module, from Looking Glass solution: 
-	* **kvmfr.ko** (looking glass, version B6 or mb later)
+5) And one more dkms module, from [Looking Glass](https://looking-glass.io/) solution: 
+	* **kvmfr.ko** (looking glass, version B6 or mb later)  
 	The build process is similar. Look at: [AUR](https://aur.archlinux.org/looking-glass.git) or use official build manual.
 
-6) Kernel cmdline += ` clocksource=tsc nohpet intel_iommu=on iommu=pt kvm.ignore_msrs=1 kvm.report_ignored_msrs=0 split_lock_detect=off initcall_blacklist=sysfb_init vfio-pci.enable_sriov=1 i915.modeset=1 i915.enable_guc=3 i915.max_vfs=7 i915.reset=1 transparent_hugepage=never `
-Not all parameters may be necessary.  
+6) Kernel cmdline += ` clocksource=tsc nohpet intel_iommu=on iommu=pt kvm.ignore_msrs=1 kvm.report_ignored_msrs=0 split_lock_detect=off initcall_blacklist=sysfb_init vfio-pci.enable_sriov=1 i915.modeset=1 i915.enable_guc=3 i915.max_vfs=7 i915.reset=1 transparent_hugepage=never `  
+    
+	Not all parameters may be required. 
+	Edit kernel cmdline and update grub:  
 `nano /etc/default/grub && grub-update` 
 
 7) Reboot.  
@@ -95,45 +98,70 @@ And turn on SR-IOV:
 Or use **sysfsutils** and add `devices/pci0000:00/0000:00:02.0/sriov_numvfs = 2` into your `/etc/sysfs.conf`.
 
 ---
-## 2. libvirt/qemu config for VM (win10/win11)
+## 2. libvirt/qemu config preparation for VM (win10/win11)
     
-#### First of all, you need to [extract](https://github.com/Kethen/edk2-build-intel-gop#extracting-intelgopdriverefi-and-vbtbin-from-your-bios) `IntelGopDriver.efi` from your BIOS.
+#### First of all, you need to extract `IntelGopDriver.efi` from your BIOS:
 
-Pass this file to the `romfile` parameter of your VM config(for qemu command-line `-device vfio-pci,host=0000:00:02.1,romfile=/whereveris/yours/IntelGopDriver.efi`, for libvirt `<rom file='/whereveris/yours/IntelGopDriver.efi'/>`), otherwise iGPU will not be able to initialize properly and you will get error n.43.  
+Download your current UEFI BIOS version from the manufacturer's website for your motherboard and unzip it.  
+Find a file like `xxx.cap` or similar, which is usually fed to BIOS flash update, like that:
 
-Detaching VFs from host to make them usable for VMs:
+|Manufacturer|Filename example|
+|:-------------------|:----------|
+|ASUS| SZ790AD4.CAP|
+|MSI| E7B86AMS.1J5|
+|GIGABYTE| B760MAORUSELITEAX.F16|
+
+Open it in [UEFITool](https://github.com/LongSoft/UEFITool) and search for hex:  
+&emsp; `4900 6e00 7400 6500 6c00 2800 5200 2900 2000 4700 4f00 5000 2000 4400 7200 6900 7600 6500 7200`  
+Right-click on the result, choose "Extract body..." and save it.  
+
+![extract](configs/images/extract.jpg "Extract")
+
+#### Pass saved file to the `romfile` parameter of your VM config:  
+* for qemu: `-device vfio-pci,host=0000:00:02.1,romfile=/whereveris/yours/IntelGopDriver.efi`  
+* for libvirt: `<rom file='/whereveris/yours/IntelGopDriver.efi'/>`  
+otherwise iGPU will not be able to initialize properly and you will get error n.43.  
+
+#### Detaching VFs from host to make them usable for VMs:
 ```
 virsh nodedev-detach pci_0000_00_02_1
 virsh nodedev-detach pci_0000_00_02_2
 ```
 
-Activating the kernel module (kvmfr) to be able to use low latency shared memory access (DMA):
+#### Activating the kernel module (kvmfr) to be able to use low latency shared memory access (DMA):
 ```
 modprobe -v kvmfr static_size_mb=128
 chmod 0660 /dev/kvmfr0
 chown $(whoami):libvirt-qemu /dev/kvmfr0
 ```
-  
-Configuration files for libvirt or qemu you can find [here](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/02-libvirt-qemu), so the rest is straightforward.
 
-## 3. Windows client setup
-
-Briefly internal preparation of the VM is consists of three parts:
-* **iddSampleDriver** (virtual monitor) Look at [here](https://github.com/ge9/IddSampleDriver) and [here](https://github.com/roshkins/IddSampleDriver)
-* working iGPU in VF mode (with your romfile)
-* looking glass host setup with ivshmem driver (run [looking-glass-host-setup.exe](https://looking-glass.io/artifact/stable/host) version B6 on your windows VM)
+#### Configuration files for libvirt or qemu you can find [here](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/02-libvirt-qemu).
 
 
-1. At first, use standart Q35 OVMF virtual machine with QXL video adapter and install windows.
-2. Setup remote desktop in windows VM and connect to it.
-3. Install **iddSampleDriver** (virtual display).
-4. Add iGPU VF to virtual machine and install iGPU driver.
-5. Install **looking-glass host** (version B6) with **ishvmem** driver. The kvmfr kernel module on the Linux host shares fast, low latency DMA memory with the ivshmem driver on the Windows virtual machine.
-6. If everything is ok remove QXL video adapter from your VM. 
-7. Finally migrate from remote desktop client to looking glass client (which you must build from source and run on your Linux Host).
+## 3. Internal preparation of VM
+
+1. Take a standart **Q35 OVMF** virtual machine with **QXL video adapter** and boot into Windows OS.
+2. Setup remote desktop services in Windows OS and connect to it from your Linux host.
+3. Install ==iddSampleDriver== (virtual display) in Windows OS.  
+   Look [here](https://github.com/ge9/IddSampleDriver) and [here](https://github.com/roshkins/IddSampleDriver).  
+   Configuration for it: [option.txt](configs/03-windows-vm/IddSampleDriver/option.txt) The location of this file must be "C:\IddSampleDriver\option.txt" (hard-coded)
+4. Add iGPU VF ==with your romfile== to the VM and install iGPU driver in Windows OS.
+5. Install ==looking-glass host application== (version B6 or newer) with ==ishvmem== driver on your windows VM: [looking-glass-host-setup.exe](https://looking-glass.io/artifact/stable/host)  
+   Look at config here: [looking-glass-host.ini](configs/03-windows-vm/Looking%20Glass%20(host)/looking-glass-host.ini)
+6. Ensure that ==kvmfr== kernel module (it shares memory with ==ivshmem== driver) is loaded on your Linux host:  
+  `lsmod | grep kvmfr`  
+  If not, load it: `modprobe -v kvmfr`
+7. If everything is ok remove QXL video adapter from your VM. Also check that kvmfr memory size is correct for your IddSampleDriver resolution of virtual display. 
+8. Finally migrate from remote desktop client to looking glass client (which you must build from source and run on your Linux Host).  
+   Looking glass [client config](configs/01-linux-host/etc/looking-glass-client.ini).  
+   Finally you will get something like that:
+
+   ![devices](configs/images/devices.png)
 
 
-All configuration files you can find in [configs](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/) , I hope this helps.
+All configuration files you can find in [configs](configs/) , I hope this helps. Good luck.  
+
+
 
 
 ### Donuts / coffee:
