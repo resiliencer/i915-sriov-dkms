@@ -4,7 +4,7 @@
 
 ## What do you need to get it work
 
-==**Notice: this package is **highly experimental**, you should only use it when you know what you are doing.**==
+**Notice: this package is **highly experimental**, you should only use it when you know what you are doing.**
 
 Tested Linux Kernel versions:
 - **6.1.60-lts** - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
@@ -142,13 +142,13 @@ chown $(whoami):libvirt-qemu /dev/kvmfr0
 
 1. Take a standart **Q35 OVMF** virtual machine with **QXL video adapter** and boot into Windows OS.
 2. Setup remote desktop services in Windows OS and connect to it from your Linux host.
-3. Install ==iddSampleDriver== (virtual display) in Windows OS.  
+3. Install **iddSampleDriver** (virtual display) in Windows OS.  
    Look [here](https://github.com/ge9/IddSampleDriver) and [here](https://github.com/roshkins/IddSampleDriver).  
    Configuration for it: [option.txt](configs/03-windows-vm/IddSampleDriver/option.txt) The location of this file must be "C:\IddSampleDriver\option.txt" (hard-coded)
-4. Add iGPU VF ==with your romfile== to the VM and install iGPU driver in Windows OS.
-5. Install ==looking-glass host application== (version B6 or newer) with ==ishvmem== driver on your windows VM: [looking-glass-host-setup.exe](https://looking-glass.io/artifact/stable/host)  
+4. Add iGPU VF **with your romfile** to the VM and install iGPU driver in Windows OS.
+5. Install **looking-glass host application** (version B6 or newer) with **ishvmem** driver on your windows VM: [looking-glass-host-setup.exe](https://looking-glass.io/artifact/stable/host)  
    Look at config here: [looking-glass-host.ini](configs/03-windows-vm/Looking%20Glass%20(host)/looking-glass-host.ini)
-6. Ensure that ==kvmfr== kernel module (it shares memory with ==ivshmem== driver) is loaded on your Linux host:  
+6. Ensure that **kvmfr** kernel module (it shares memory with **ivshmem** driver) is loaded on your Linux host:  
   `lsmod | grep kvmfr`  
   If not, load it: `modprobe -v kvmfr`
 7. If everything is ok remove QXL video adapter from your VM. Also check that kvmfr memory size is correct for your IddSampleDriver resolution of virtual display. 
