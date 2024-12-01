@@ -6,10 +6,18 @@
 
 **Notice: this package is **highly experimental**, you should only use it when you know what you are doing.**
 
-Tested Linux Kernel versions:
-- **6.1.60-lts** - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
-- **6.11.2-zen** - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa-bbaa Pull Request #207 and it solved the issue and now everything works without errors.
+### Tested Linux Kernel versions:
+- **6.1.60-lts** (commit 9438df56) - works perfectly, I've been using this branch for almost the entire year of 2024 for a fast and responsive desktop on VMs without any lag.
+- **6.11.2-zen** (commit 7fed38c6) - everything works. Source code had been synchronized with @strongtz but I had got some i915 errors during boot and init in dmesg. Then I had integrated @bbaa-bbaa Pull Request #207 and it solved the issue and now everything works without errors.
+- **6.11.6-zen** (current commit) - works good. dmesg without errors. Fully synced with @bbaa-bbaa branch `6.6-base`, it is the maximum up-to-date version. I had built it on `6.11.6-zen1` on Arch Linux. So I would recommend for the lastest dkms module to clone [bbaa-bbaa/i915-sriov-dkms](https://github.com/bbaa-bbaa/i915-sriov-dkms) repository.
 
+### Here you can find:  
+ - instructions how to do iGPU passthrough via SR-IOV on Raptor Lake
+ - and mentioned above tested commits for easy build  
+
+Good luck ;)
+
+--- 
 ## 1. Linux host setup
 
 1) UEFI BIOS settings. I think the only settings that matter are:
@@ -137,6 +145,7 @@ chown $(whoami):libvirt-qemu /dev/kvmfr0
 
 #### Configuration files for libvirt or qemu you can find [here](https://github.com/resiliencer/i915-sriov-dkms/tree/master/configs/02-libvirt-qemu).
 
+---
 
 ## 3. Internal preparation of VM
 

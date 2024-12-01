@@ -5,7 +5,6 @@
  */
 #include <linux/vmalloc.h>
 
-#include <linux/vmalloc.h>
 #include <drm/drm_cache.h>
 
 #include "gt/intel_gt.h"
